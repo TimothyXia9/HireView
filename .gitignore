@@ -8,3 +8,5 @@ python-backend/dist
 python-backend/.gradio/certificate.pem
 electron-app/node_modules
 electron-app/dist
+
+electron-app/gradio_app.exe
