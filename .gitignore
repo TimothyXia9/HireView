@@ -1,6 +1,10 @@
-/venv
+.claude
 
+/venv
+python-backend/venv
+
+python-backend/build
+python-backend/dist
 python-backend/.gradio/certificate.pem
 electron-app/node_modules
 electron-app/dist
-.claude
