@@ -1,0 +1,2 @@
+gradio==5.47.2
+pdfplumber==0.11.4
