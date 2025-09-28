@@ -1,0 +1,8 @@
+gradio==5.47.2
+pdfplumber==0.11.4
+fastapi>=0.115.2
+uvicorn==0.24.0
+python-multipart>=0.0.18
+pydantic>=2.5.0
+requests>=2.31.0
+

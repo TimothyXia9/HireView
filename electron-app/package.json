@@ -1,0 +1,47 @@
+{
+  "name": "HireView",
+  "version": "1.0.0",
+  "description": "Electron frontend for HireView project",
+  "main": "main.js",
+  "author": "Qualcomm Hackathon Team <HireView>",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder",
+    "dev": "electron . --dev"
+  },
+  "devDependencies": {
+    "electron": "^32.0.0",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "com.qualcomm.hack.electron",
+    "productName": "HireView",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "node_modules/**/*",
+      "python-backend/dist/gradio_app.exe"
+    ],
+    "extraResources": [
+      {
+        "from": "../python-backend/dist/gradio_app.exe",
+        "to": "python-backend/gradio_app.exe"
+      }
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "icon.ico"
+    },
+    "mac": {
+      "target": "dmg",
+      "icon": "icon.icns"
+    },
+    "linux": {
+      "target": "AppImage",
+      "icon": "icon.png"
+    }
+  }
+}

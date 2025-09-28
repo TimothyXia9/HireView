@@ -1,0 +1,5 @@
+api_key: "R4AR5D5-JX549CT-NHD1HR8-FKF2PJZ"
+model_server_base_url: "http://localhost:3001/api/v1"
+workspace_slug: "shawn"
+stream: true
+stream_timeout: 60
