@@ -1,0 +1,76 @@
+# John Doe
+
+**Email**: johndoe@example.com  
+**Phone**: (+1) 123-456-7890  
+**GitHub**: [github.com/johndoe](https://github.com/johndoe)  
+**LinkedIn**: [linkedin.com/in/johndoe](https://linkedin.com/in/johndoe)  
+**Location**: San Francisco, CA / Open to Remote
+
+---
+
+## Education
+
+**Tsinghua University** · B.S. in Computer Science  
+Sep 2016 – Jul 2020  
+
+- GPA: 3.7/4.0  
+- Relevant Courses: Data Structures & Algorithms, Operating Systems, Database Systems, Machine Learning, Distributed Systems  
+
+---
+
+## Skills
+
+- **Programming Languages**: Python, Java, C++, Go, JavaScript (ES6+)  
+- **Web Development**: React, Node.js, Express, Django, Spring Boot  
+- **Databases**: MySQL, PostgreSQL, MongoDB, Redis  
+- **Tools/Platforms**: Docker, Kubernetes, Git, Linux, AWS, GCP  
+- **Core Knowledge**: Data Structures, System Design, Design Patterns, Distributed Systems  
+
+---
+
+## Work Experience
+
+**Software Development Engineer | ByteDance**  
+Jul 2022 – Present | Beijing, China  
+
+- Built and optimized backend services for recommendation systems using **Go + gRPC**, handling **hundreds of millions of requests daily**.  
+- Improved database queries and caching with MySQL + Redis, reducing response latency by **30%**.  
+- Contributed to microservice architecture design and automated deployment using **Docker + Kubernetes**.  
+- Mentored new hires, conducted code reviews, and led technical knowledge sharing sessions.  
+
+**Backend Engineer Intern | Tencent**  
+Jul 2020 – Jun 2021 | Shenzhen, China  
+
+- Developed core features for the IM platform backend using **Java + Spring Boot**.  
+- Implemented RESTful APIs for user authentication, messaging, and notifications.  
+- Enhanced log collection and monitoring, reducing issue detection and troubleshooting time.  
+
+---
+
+## Projects
+
+**Distributed Web Crawler System**  
+- Built with **Python + Scrapy + Kafka + MongoDB**, supporting **horizontal scaling**.  
+- Implemented distributed task queues to achieve **100k+ concurrent URL fetches**, with 1TB+ of stored data.  
+- Deployed via **Docker + Kubernetes**, ensuring high availability and fault tolerance.  
+
+**Real-time Collaborative Editor (Google Docs Clone)**  
+- Frontend built with **React + WebSocket**, backend with **Node.js + Redis**.  
+- Implemented **Operational Transformation (OT)** algorithm to resolve concurrent editing conflicts.  
+- Supported rich-text editing, access control, and version history rollback.  
+
+---
+
+## Awards & Certifications
+
+- Silver Medal – ACM-ICPC Regional Contest  
+- AWS Certified Solutions Architect – Associate  
+- First-Class Scholarship, Tsinghua University (2018, 2019)  
+
+---
+
+## Additional Information
+
+- Strong interest in **large-scale distributed systems and high-concurrency architecture**.  
+- Contributor to open-source projects (e.g., Apache Kafka plugins, Kubernetes tools).  
+- Active in tech blogging and knowledge sharing.  
