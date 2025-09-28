@@ -6,6 +6,33 @@ import os
 import uuid
 from datetime import datetime
 
+# 简历文本截断配置
+MAX_RESUME_LENGTH = 50000  # 最大字符数
+MAX_RESUME_WORDS = 8000  # 最大单词数
+TRUNCATION_MESSAGE = "Resume too long, truncated for analysis."
+
+
+def truncate_resume_text(text):
+    """截断过长的简历文本"""
+    if not text or text.startswith("Error") or text.startswith("No file"):
+        return text
+
+    # 检查字符数
+    if len(text) > MAX_RESUME_LENGTH:
+        text = text[:MAX_RESUME_LENGTH]
+        text += TRUNCATION_MESSAGE
+        return text
+
+    # 检查单词数
+    words = text.split()
+    if len(words) > MAX_RESUME_WORDS:
+        truncated_words = words[:MAX_RESUME_WORDS]
+        text = " ".join(truncated_words)
+        text += TRUNCATION_MESSAGE
+        return text
+
+    return text
+
 
 def extract_text_from_pdf(file_path):
     """Extract text from PDF file using pdfplumber"""
@@ -16,7 +43,10 @@ def extract_text_from_pdf(file_path):
                 page_text = page.extract_text()
                 if page_text:
                     text += page_text + "\n"
-        return text.strip()
+
+        # 截断过长的文本
+        text = text.strip()
+        return truncate_resume_text(text)
     except Exception as e:
         return f"Error extracting text from PDF: {str(e)}"
 
@@ -35,7 +65,8 @@ def extract_text_from_file(file_path):
             # For now, handle TXT files. DOC/DOCX would need python-docx
             if file_extension == ".txt":
                 with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
-                    return f.read()
+                    text = f.read()
+                    return truncate_resume_text(text)
             else:
                 return f"File format {file_extension} is not yet supported. Please use PDF or TXT files."
         else:
@@ -168,6 +199,7 @@ sessions = {}
 current_session = None
 current_mode = "upload"  # upload, resume_chat, mock_interview
 
+
 def create_new_session(session_type, title):
     """Create a new session"""
     session_id = str(uuid.uuid4())[:8]
@@ -178,9 +210,10 @@ def create_new_session(session_type, title):
         "created_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
         "messages": [],
         "resume_file": None,
-        "job_description": ""
+        "job_description": "",
     }
     return session_id
+
 
 def get_session_list():
     """Get formatted session list for sidebar"""
@@ -192,10 +225,17 @@ def get_session_list():
         session_list.append(f"🗨️ {session['title']} ({session['created_at']})")
     return "\n".join(session_list)
 
+
 def handle_file_upload(file, job_desc):
     """Handle resume file upload and create new session"""
     if not file:
-        return None, "Please upload a resume file", get_session_list(), gr.update(visible=True), gr.update(visible=False), []
+        return (
+            None,
+            "Please upload a resume file",
+            get_session_list(),
+            gr.update(visible=True),
+            gr.update(visible=False),
+        )
 
     # Create new session
     filename = os.path.basename(file.name)
@@ -208,19 +248,21 @@ def handle_file_upload(file, job_desc):
     analysis = quick_analyze(file)
 
     # Add initial analysis to session
-    initial_message = f"Resume uploaded successfully! {analysis}"
     sessions[session_id]["messages"] = [
-        {"role": "assistant", "content": initial_message}
+        {"role": "assistant", "content": f"Resume uploaded successfully! {analysis}"}
     ]
 
     global current_session
-    current_mode = "resume_chat"
     current_session = session_id
 
-    # Return session info and initial chat history
-    initial_chat = [{"role": "assistant", "content": initial_message}]
+    return (
+        session_id,
+        "",
+        get_session_list(),
+        gr.update(visible=False),
+        gr.update(visible=True),
+    )
 
-    return session_id, "", get_session_list(), gr.update(visible=False), gr.update(visible=True), initial_chat
 
 def switch_mode(mode):
     """Switch between resume chat and mock interview modes"""
@@ -229,25 +271,28 @@ def switch_mode(mode):
 
     if mode == "resume_chat":
         return (
-            gr.update(value="**📄 Resume Review Mode**"),
+            gr.update(value="Resume Review Mode"),
             gr.update(visible=True),
             gr.update(visible=False),
-            gr.update(variant="primary"),  # Resume button active
-            gr.update(variant="secondary")  # Interview button inactive
         )
     else:  # mock_interview
         return (
-            gr.update(value="**🎤 Mock Interview Mode**"),
+            gr.update(value="Mock Interview Mode"),
             gr.update(visible=False),
             gr.update(visible=True),
-            gr.update(variant="secondary"),  # Resume button inactive
-            gr.update(variant="primary")  # Interview button active
         )
+
 
 def chat_message(message, history, session_id):
     """Handle chat messages"""
     if not session_id or session_id not in sessions:
-        new_history = history + [{"role": "user", "content": message}, {"role": "assistant", "content": "Please upload a resume first to start chatting."}]
+        new_history = history + [
+            {"role": "user", "content": message},
+            {
+                "role": "assistant",
+                "content": "Please upload a resume first to start chatting.",
+            },
+        ]
         return "", new_history
 
     session = sessions[session_id]
@@ -258,13 +303,30 @@ def chat_message(message, history, session_id):
             extracted_text = extract_text_from_file(session["resume_file"].name)
 
             if "skill" in message.lower() or "技能" in message:
-                bot_response = analyze_resume_content(extracted_text, "Skills Assessment")
+                bot_response = analyze_resume_content(
+                    extracted_text, "Skills Assessment"
+                )
             elif "experience" in message.lower() or "经验" in message:
-                bot_response = analyze_resume_content(extracted_text, "Experience Matching")
-            elif "improve" in message.lower() or "suggest" in message.lower() or "建议" in message:
-                bot_response = analyze_resume_content(extracted_text, "Improvement Suggestions")
-            elif "evaluat" in message.lower() or "overall" in message.lower() or "评价" in message or "评分" in message:
-                bot_response = analyze_resume_content(extracted_text, "Overall Evaluation")
+                bot_response = analyze_resume_content(
+                    extracted_text, "Experience Matching"
+                )
+            elif (
+                "improve" in message.lower()
+                or "suggest" in message.lower()
+                or "建议" in message
+            ):
+                bot_response = analyze_resume_content(
+                    extracted_text, "Improvement Suggestions"
+                )
+            elif (
+                "evaluat" in message.lower()
+                or "overall" in message.lower()
+                or "评价" in message
+                or "评分" in message
+            ):
+                bot_response = analyze_resume_content(
+                    extracted_text, "Overall Evaluation"
+                )
             else:
                 bot_response = f"I'm here to help you improve your resume! You can ask me about:\n\n• Skills assessment\n• Experience matching\n• Improvement suggestions\n• Overall evaluation\n\nWhat would you like to know?"
         else:
@@ -277,11 +339,17 @@ def chat_message(message, history, session_id):
             "Why are you interested in this position?",
             "What's your greatest strength?",
             "Describe a challenging project you've worked on.",
-            "Where do you see yourself in 5 years?"
+            "Where do you see yourself in 5 years?",
         ]
 
         # Simple mock interview logic
-        question_count = len([msg for msg in session.get("messages", []) if msg["role"] == "assistant" and "Question" in msg.get("content", "")])
+        question_count = len(
+            [
+                msg
+                for msg in session.get("messages", [])
+                if msg["role"] == "assistant" and "Question" in msg.get("content", "")
+            ]
+        )
 
         if question_count < len(interview_questions):
             bot_response = f"**Interview Question {question_count + 1}:**\n\n{interview_questions[question_count]}\n\nTake your time to answer, and I'll provide feedback!"
@@ -289,15 +357,21 @@ def chat_message(message, history, session_id):
             bot_response = "Great job! You've completed all the interview questions. Based on your responses, here's my feedback: Your answers show good preparation and enthusiasm. Consider adding more specific examples to strengthen your responses."
 
     # Update session messages
-    session["messages"].extend([
-        {"role": "user", "content": message},
-        {"role": "assistant", "content": bot_response}
-    ])
+    session["messages"].extend(
+        [
+            {"role": "user", "content": message},
+            {"role": "assistant", "content": bot_response},
+        ]
+    )
 
     # Update chat history - use messages format
-    new_history = history + [{"role": "user", "content": message}, {"role": "assistant", "content": bot_response}]
+    new_history = history + [
+        {"role": "user", "content": message},
+        {"role": "assistant", "content": bot_response},
+    ]
 
     return "", new_history
+
 
 def new_conversation():
     """Start a new conversation"""
@@ -306,217 +380,201 @@ def new_conversation():
     current_mode = "upload"
     return [], get_session_list(), gr.update(visible=True), gr.update(visible=False)
 
+
 # Custom CSS for OpenAI-like styling
 custom_css = """
-/* Remove default gradio margins and paddings */
+/* 全局容器设置 */
 .gradio-container {
-    max-width: none !important;
-    padding: 0 !important;
-    margin: 0 !important;
-}
-
-/* Main layout - full viewport height */
-.main-container {
     height: 100vh !important;
     max-height: 100vh !important;
     overflow: hidden !important;
-    display: flex !important;
 }
 
-/* Sidebar styling */
 .sidebar {
     background-color: #f8f9fa;
     padding: 20px;
     border-right: 1px solid #e5e7eb;
-    height: 100vh !important;
-    max-height: 100vh !important;
-    width: 280px;
-    min-width: 280px;
+    height: 100vh;
     overflow-y: auto;
-    flex-shrink: 0;
 }
 
-/* Main content area */
 .main-content {
-    height: 100vh !important;
-    max-height: 100vh !important;
+    height: 100vh;
     display: flex;
     flex-direction: column;
-    flex: 1;
     overflow: hidden;
 }
 
-/* Upload area - centered */
 .upload-area {
     display: flex;
     flex-direction: column;
     justify-content: center;
     align-items: center;
-    height: 100vh !important;
+    height: 80vh;
     border: 2px dashed #d1d5db;
     border-radius: 12px;
     margin: 20px;
     background-color: #f9fafb;
-    overflow: hidden;
+    overflow-y: auto;
 }
 
-/* Chat interface layout */
+/* 聊天界面布局 */
 .chat-interface {
-    height: 100vh !important;
-    max-height: 100vh !important;
+    height: 100vh;
     display: flex;
     flex-direction: column;
-    padding: 20px;
     overflow: hidden;
+    padding: 0;
 }
 
-/* Mode switcher - fixed height */
 .mode-switcher {
     background-color: #f3f4f6;
-    padding: 15px;
+    padding: 8px;
     border-radius: 8px;
-    margin-bottom: 15px;
+    margin: 10px 10px 0 10px;
     flex-shrink: 0;
-    height: 70px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
+    height: 60px;
 }
 
-/* Mode display styling */
-.mode-display {
-    flex: 1;
-    margin-right: 20px;
-}
-
-/* Mode buttons container */
-.mode-buttons {
-    display: flex;
-    gap: 10px;
-}
-
-/* Mode button styling */
-.mode-btn {
-    padding: 8px 16px !important;
-    border-radius: 6px !important;
-    font-weight: 500 !important;
-    transition: all 0.2s ease !important;
-}
-
-.mode-btn.active {
-    background-color: #3b82f6 !important;
-    color: white !important;
-    border-color: #3b82f6 !important;
-}
-
-.mode-btn.inactive {
-    background-color: #e5e7eb !important;
-    color: #6b7280 !important;
-    border-color: #d1d5db !important;
-}
-
-/* Chat area - takes remaining space */
-.chat-area {
-    flex: 1;
+.chat-container {
+    height: calc(100vh - 200px);
+    max-height: calc(100vh - 200px);
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    min-height: 0;
-}
-
-/* Chatbot container - scrollable */
-.chatbot-container {
-    flex: 1;
-    overflow-y: auto !important;
-    border: 1px solid #e5e7eb;
-    border-radius: 8px;
-    margin-bottom: 15px;
-    min-height: 0;
-}
-
-/* Input area - fixed height */
-.input-area {
-    flex-shrink: 0;
-    border-top: 1px solid #e5e7eb;
-    padding-top: 15px;
-    height: 80px;
-    max-height: 80px;
-}
-
-/* Session list - scrollable */
-.session-list {
-    max-height: 50vh;
-    overflow-y: auto;
-    border: 1px solid #e5e7eb;
-    border-radius: 8px;
     padding: 10px;
-    margin-top: 10px;
+    flex-shrink: 0;
+}
+
+.input-area {
+    height: 120px;
+    max-height: 120px;
+    flex-shrink: 0;
+    padding: 10px;
+    background-color: #ffffff;
+    border-top: 1px solid #e5e7eb;
+    margin: 0;
+    overflow: hidden;
 }
 
 .logo {
     font-size: 24px;
     font-weight: bold;
     color: #1f2937;
-    margin-bottom: 20px;
+    margin-bottom: 30px;
     text-align: center;
-    flex-shrink: 0;
 }
 
-/* Job description textarea */
-.job-desc-area {
-    max-height: 200px !important;
-    height: 200px !important;
+/* Gradio组件特定样式 */
+.gradio-container .gr-chatbot {
+    height: calc(100vh - 220px) !important;
+    max-height: calc(100vh - 220px) !important;
+    overflow-y: auto !important;
+    flex: none !important;
+    min-height: 400px !important;
+    border: 1px solid #e5e7eb !important;
+    border-radius: 8px !important;
 }
 
-/* Remove gradio's default scroll behaviors */
-.gradio-row, .gradio-column {
-    min-height: 0 !important;
-}
-
-/* Override gradio defaults */
-.gradio-container .block {
-    border: none !important;
-    box-shadow: none !important;
-}
-
-/* Ensure no body scrolling */
-body {
+/* 特定ID样式 */
+#main-chatbot {
+    height: calc(100vh - 220px) !important;
+    max-height: calc(100vh - 220px) !important;
     overflow: hidden !important;
-    margin: 0 !important;
-    padding: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
 }
 
-/* Fix gradio container */
-#root {
-    height: 100vh !important;
+#main-chatbot .wrap {
+    height: 100% !important;
+    max-height: 100% !important;
     overflow: hidden !important;
+    display: flex !important;
+    flex-direction: column !important;
 }
 
-/* Prevent overflow on main elements */
-.app {
-    height: 100vh !important;
+#main-chatbot .chatbot {
+    height: 100% !important;
+    max-height: 100% !important;
+    overflow-y: auto !important;
+    flex: 1 !important;
+}
+
+/* 修复消息包装器高度 */
+#main-chatbot .message-wrap {
+    max-height: none !important;
+    overflow: visible !important;
+}
+
+#main-chatbot .chatbot .message-container {
+    height: 100% !important;
+    max-height: 100% !important;
+    overflow-y: auto !important;
+}
+
+.gradio-container .gr-textbox {
+    min-height: auto !important;
+    max-height: 80px !important;
+}
+
+/* 确保消息容器可以滚动 */
+.gradio-container .gr-chatbot .message-container {
+    overflow-y: auto !important;
+    max-height: 100% !important;
+}
+
+/* 更具体的Gradio内部结构控制 */
+.gradio-container .gr-chatbot > div {
+    height: 100% !important;
+    max-height: 100% !important;
     overflow: hidden !important;
+    display: flex !important;
+    flex-direction: column !important;
 }
 
-/* Specific gradio component adjustments */
-.gr-file-upload {
-    max-height: 150px !important;
+.gradio-container .gr-chatbot > div > div {
+    flex: 1 !important;
+    overflow-y: auto !important;
+    height: 100% !important;
+    max-height: 100% !important;
 }
 
-.gr-textbox {
-    max-height: inherit !important;
+/* 消息列表容器 */
+.gradio-container .gr-chatbot .wrap {
+    height: 100% !important;
+    max-height: 100% !important;
+    overflow-y: auto !important;
+    padding: 10px !important;
 }
 
-/* Button spacing */
-.gr-button {
-    margin: 5px 0 !important;
+/* 移除不必要的margin和padding */
+.gradio-container .gr-column {
+    gap: 5px !important;
+}
+
+/* 聊天消息样式 */
+.message {
+    margin-bottom: 10px;
+    padding: 10px;
+    border-radius: 8px;
+    word-wrap: break-word;
+}
+
+/* 防止输入区域被挤压 */
+.input-area .gr-textbox {
+    max-height: 60px !important;
+    overflow-y: auto !important;
 }
 """
 
 # Create Gradio interface with OpenAI-like layout
-with gr.Blocks(title="HireView - AI Resume & Interview Assistant", css=custom_css, theme=gr.themes.Soft()) as demo:
+with gr.Blocks(
+    title="HireView - AI Resume & Interview Assistant",
+    css=custom_css,
+    theme=gr.themes.Soft(),
+) as demo:
 
-    with gr.Row(elem_classes="main-container"):
+    with gr.Row():
         # Left Sidebar
         with gr.Column(scale=1, elem_classes="sidebar"):
             gr.Markdown("# 🎯 HireView", elem_classes="logo")
@@ -524,7 +582,7 @@ with gr.Blocks(title="HireView - AI Resume & Interview Assistant", css=custom_cs
             new_chat_btn = gr.Button("+ New Conversation", variant="primary", size="sm")
 
             gr.Markdown("### Recent Conversations")
-            session_list = gr.Markdown(get_session_list(), elem_classes="session-list")
+            session_list = gr.Markdown(get_session_list())
 
         # Main Content Area
         with gr.Column(scale=3, elem_classes="main-content"):
@@ -532,116 +590,138 @@ with gr.Blocks(title="HireView - AI Resume & Interview Assistant", css=custom_cs
             session_state = gr.State(value=None)
 
             # Upload Interface (visible initially)
-            with gr.Column(visible=True, elem_classes="upload-area") as upload_interface:
-                gr.Markdown("# Welcome to HireView")
+            with gr.Column(
+                visible=True, elem_classes="upload-area"
+            ) as upload_interface:
+                gr.Markdown("# Welcome to HireView", elem_classes="text-center")
                 gr.Markdown("Upload your resume and job description to get started")
 
-                with gr.Column():
-                    resume_upload = gr.File(
-                        label="📄 Upload Resume",
-                        file_types=[".pdf", ".doc", ".docx", ".txt"],
-                        type="filepath"
-                    )
+                with gr.Row():
+                    with gr.Column():
+                        resume_upload = gr.File(
+                            label="📄 Upload Resume",
+                            file_types=[".pdf", ".doc", ".docx", ".txt"],
+                            type="filepath",
+                        )
 
-                    job_description = gr.Textbox(
-                        label="💼 Job Description (Optional)",
-                        placeholder="Paste the job description here to get more targeted advice...",
-                        lines=6,
-                        elem_classes="job-desc-area"
-                    )
+                        job_description = gr.Textbox(
+                            label="💼 Job Description (Optional)",
+                            placeholder="Paste the job description here to get more targeted advice...",
+                            lines=8,
+                        )
 
-                    upload_btn = gr.Button("Start Analysis", variant="primary", size="lg")
+                        upload_btn = gr.Button(
+                            "Start Analysis", variant="primary", size="lg"
+                        )
 
             # Chat Interface (hidden initially)
             with gr.Column(visible=False, elem_classes="chat-interface") as chat_interface:
-                # Mode switcher
+                # Mode switcher - fixed at top
                 with gr.Row(elem_classes="mode-switcher"):
-                    mode_display = gr.Markdown("**📄 Resume Review Mode**", elem_classes="mode-display")
-                    with gr.Column(elem_classes="mode-buttons"):
-                        with gr.Row():
-                            resume_mode_btn = gr.Button("📄 Resume Review", variant="primary", size="sm", elem_classes="mode-btn")
-                            interview_mode_btn = gr.Button("🎤 Mock Interview", variant="secondary", size="sm", elem_classes="mode-btn")
-
-                # Chat area - takes remaining space
-                with gr.Column(elem_classes="chat-area"):
-                    chatbot = gr.Chatbot(
-                        label="AI Assistant",
-                        height=400,
-                        show_label=False,
-                        elem_classes="chatbot-container",
-                        type="messages"
+                    mode_display = gr.Markdown("**Resume Review Mode**")
+                    resume_mode_btn = gr.Button(
+                        "Resume Review", variant="secondary", size="sm"
+                    )
+                    interview_mode_btn = gr.Button(
+                        "Mock Interview", variant="secondary", size="sm"
                     )
 
+                # Chat container - fixed height
+                with gr.Column(elem_classes="chat-container"):
+                    chatbot = gr.Chatbot(
+                        label="AI Assistant",
+                        height=450,
+                        show_label=False,
+                        type="messages",
+                        scroll_to_output=True,
+                        show_copy_button=True,
+                        container=True,
+                        elem_id="main-chatbot",
+                        bubble_full_width=False,
+                    )
+
+                # Fixed input area at bottom
+                with gr.Column(elem_classes="input-area"):
                     # Resume chat input (visible initially in chat mode)
-                    with gr.Row(visible=True, elem_classes="input-area") as resume_input_area:
+                    with gr.Row(visible=True) as resume_input_area:
                         with gr.Column(scale=4):
                             chat_input = gr.Textbox(
                                 placeholder="Ask me about your resume: skills assessment, improvement suggestions, etc.",
                                 show_label=False,
                                 lines=1,
-                                max_lines=1
+                                max_lines=2,
+                                container=False,
                             )
-                        with gr.Column(scale=1):
-                            send_btn = gr.Button("Send", variant="primary")
+                        with gr.Column(scale=1, min_width=80):
+                            send_btn = gr.Button("Send", variant="primary", size="sm")
 
                     # Interview input area (hidden initially)
-                    with gr.Row(visible=False, elem_classes="input-area") as interview_input_area:
+                    with gr.Row(visible=False) as interview_input_area:
                         with gr.Column(scale=4):
                             interview_input = gr.Textbox(
                                 placeholder="Answer the interview question above...",
                                 show_label=False,
-                                lines=1,
-                                max_lines=2
+                                lines=2,
+                                max_lines=3,
+                                container=False,
                             )
-                        with gr.Column(scale=1):
-                            interview_send_btn = gr.Button("Submit Answer", variant="primary")
+                        with gr.Column(scale=1, min_width=100):
+                            interview_send_btn = gr.Button(
+                                "Submit Answer", variant="primary", size="sm"
+                            )
 
     # Event handlers
     upload_btn.click(
         handle_file_upload,
         inputs=[resume_upload, job_description],
-        outputs=[session_state, chat_input, session_list, upload_interface, chat_interface, chatbot]
+        outputs=[
+            session_state,
+            chat_input,
+            session_list,
+            upload_interface,
+            chat_interface,
+        ],
     )
 
     send_btn.click(
         chat_message,
         inputs=[chat_input, chatbot, session_state],
-        outputs=[chat_input, chatbot]
+        outputs=[chat_input, chatbot],
     )
 
     chat_input.submit(
         chat_message,
         inputs=[chat_input, chatbot, session_state],
-        outputs=[chat_input, chatbot]
+        outputs=[chat_input, chatbot],
     )
 
     interview_send_btn.click(
         chat_message,
         inputs=[interview_input, chatbot, session_state],
-        outputs=[interview_input, chatbot]
+        outputs=[interview_input, chatbot],
     )
 
     interview_input.submit(
         chat_message,
         inputs=[interview_input, chatbot, session_state],
-        outputs=[interview_input, chatbot]
+        outputs=[interview_input, chatbot],
     )
 
     # Mode switching
     resume_mode_btn.click(
         lambda: switch_mode("resume_chat"),
-        outputs=[mode_display, resume_input_area, interview_input_area, resume_mode_btn, interview_mode_btn]
+        outputs=[mode_display, resume_input_area, interview_input_area],
     )
 
     interview_mode_btn.click(
         lambda: switch_mode("mock_interview"),
-        outputs=[mode_display, resume_input_area, interview_input_area, resume_mode_btn, interview_mode_btn]
+        outputs=[mode_display, resume_input_area, interview_input_area],
     )
 
     # New conversation
     new_chat_btn.click(
         new_conversation,
-        outputs=[chatbot, session_list, upload_interface, chat_interface]
+        outputs=[chatbot, session_list, upload_interface, chat_interface],
     )
 
 # Launch application
@@ -653,14 +733,15 @@ if __name__ == "__main__":
         demo.launch(
             share=False,  # Disable share for packaged apps
             server_name="127.0.0.1",  # Use localhost for packaged apps
-            server_port=7861,  # Use different port
+            server_port=7860,  # Use different port
             show_error=True,  # Show error messages
             quiet=False,  # Show startup messages
             prevent_thread_lock=False,  # Allow blocking
-            inbrowser=True,  # Auto-open browser
+            inbrowser=False,  # Auto-open browser
         )
     except Exception as e:
         print(f"Error starting application: {e}")
         import traceback
+
         traceback.print_exc()
         input("Press Enter to exit...")

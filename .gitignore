@@ -11,3 +11,5 @@ electron-app/dist
 
 electron-app/gradio_app.exe
 python-backend/conversations
+python-backend/__pycache__
+python-backend/*.pyc
