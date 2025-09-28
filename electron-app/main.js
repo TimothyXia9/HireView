@@ -89,10 +89,6 @@ function startPythonBackend() {
 		// 设置启动超时（30秒）
 		const timeout = setTimeout(() => {
 			reject(new Error("HireView backend startup timeout (30s)"));
-		}, 30000);
-
-		// 清理超时定时器
-		const originalResolve = resolve;
 		resolve = () => {
 			clearTimeout(timeout);
 			originalResolve();
