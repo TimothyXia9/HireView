@@ -10,3 +10,4 @@ electron-app/node_modules
 electron-app/dist
 
 electron-app/gradio_app.exe
+python-backend/conversations
