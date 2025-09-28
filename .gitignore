@@ -1,1 +1,6 @@
 /venv
+
+electron-app/node_modules
+electron-app/dist
+electron-app/build
+
